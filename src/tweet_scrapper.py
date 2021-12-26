@@ -1,3 +1,4 @@
+# TODO: Refactor the classes and methods
 from os import environ
 import tweepy
 import sys
@@ -7,10 +8,10 @@ from env_config import ACCESS_TOKEN, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER
 
 class Authentication:
     def __init__(self) -> None:
-        self.consumer_key = f"{environ.get(CONSUMER_KEY)}"
-        self.consumer_secret = f"{environ.get(CONSUMER_SECRET)}"
-        self.access_token = f"{environ.get(ACCESS_TOKEN)}"
-        self.access_token_secret = f"{environ.get(ACCESS_TOKEN_SECRET)}"
+        self.consumer_key = environ.get("CONSUMER_KEY")
+        self.consumer_secret = environ.get("CONSUMER_SECRET")
+        self.access_token = environ.get("ACCESS_TOKEN")
+        self.access_token_secret = environ.get("ACCESS_TOKEN_SECRET")
     
     def instantiate_auth(self):
         auth = tweepy.OAuthHandler(self.consumer_key, self.consumer_secret)
@@ -20,17 +21,15 @@ class Authentication:
 
 class Tweet_Scrapper:
 
-    def __init__(self, username) -> None:
+    def __init__(self, username, api) -> None:
         self.username = username
+        self.api = api
     
     def retrieve_tweets(self):
-        auth = Authentication()
-        inst_auth = auth.instantiate_auth()
-        api = tweepy.API(inst_auth)
 
         tweets = []
 
-        for twt in tweepy.Cursor(api.user_timeline, screen_name=self.username, tweet_mode = 'extended').items():
+        for twt in tweepy.Cursor(self.api.user_timeline, screen_name=self.username, tweet_mode = 'extended').items():
             tweets.append(twt)
 
         return tweets
@@ -44,13 +43,12 @@ class Tweet_Scrapper:
         return tweet_list
 
 class Tweet_Saver:
-    def __init__(self, tweet_list, username) -> None:
-        self.tweet_list = tweet_list
+    def __init__(self, username) -> None:
         self.username = username
     
-    def save_tweets_text(self):
+    def save_tweets_text(self, tweet_list):
         with open(f"{self.username}.txt", "a") as f:
-            for line in self.tweet_list:
+            for line in tweet_list:
                 f.write(line)
                 f.write("\n\n")
                 f.write("------------")
@@ -58,27 +56,54 @@ class Tweet_Saver:
         
         print("Tweets saved!!")
         f.close()
+    
+    def save_followers_text(self, followers):
+        with open(f"{self.username}_followers.txt", "a") as f:
+            for follower in followers:
+                f.write(follower)
+                f.write("\n\n")
+                f.write("------------")
+                f.write("\n")
+        
+        print("Followers saved!!")
+        f.close()
 
 
+class Followers_List:
+    def __init__(self, username, api) -> None:
+        self.username = username
+        self.api = api
 
+    def get_followers(self):
+        followers_list = []
+        for follower in self.api.get_followers(screen_name = self.username):
+            followers_list.append(follower.name)
+        
+        return followers_list
 
 if __name__ == "__main__":
 
     argv = sys.argv[1:]
 
+    auth = Authentication()
+    inst_auth = auth.instantiate_auth()
+    api = tweepy.API(inst_auth)
+
+
     try:
-        opts, args = getopt.getopt(argv, "u:h:")
+        opts, args = getopt.getopt(argv, "u:h:f:")
     except:
         raise ValueError('provided argument not supported')
     
     for opt,arg in opts:
 
         if opt in ['-u']:
-            tweet_scrapper = Tweet_Scrapper(arg)
+            
+            tweet_scrapper = Tweet_Scrapper(arg, api)
             tweets = tweet_scrapper.format_tweets()
 
-            tweet_saver = Tweet_Saver(tweets, arg)
-            tweet_saver.save_tweets_text()
+            tweet_saver = Tweet_Saver(arg)
+            tweet_saver.save_tweets_text(tweets)
 
         elif opt in ['-h']:
             print('''
@@ -86,5 +111,16 @@ if __name__ == "__main__":
             -h: help
             '''
             )
+        elif opt in ['-f']:
+           followers =  Followers_List(arg, api)
+           list = followers.get_followers()
+           tweet_saver_followers = Tweet_Saver(arg)
+           tweet_saver_followers.save_followers_text(list)
+        
+        else:
+            print('Sorry not yet supported!!')
+
+
+
 
     
